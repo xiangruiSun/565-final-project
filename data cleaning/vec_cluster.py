@@ -1,50 +1,78 @@
+import numpy as np
+import pandas as pd
 from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.decomposition import TruncatedSVD
 from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
-import pandas as pd
+from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
+import matplotlib.pyplot as plt
 
-# Load the data from the Excel file
-file_path = 'US_youtube_trending_data 2.csv'
+# Load the data from the CSV file
+file_path = 'US_youtube_trending_data.csv'
 data = pd.read_csv(file_path)
-new_data = data.iloc[:150000]
-# Extract the 'tags' column
-# Assuming new_data is already loaded and contains the first 1000 rows
-# Extract the 'tags' column from new_data instead of the entire dataset
+
+# Set a seed and randomly select 5000 rows
+np.random.seed(42)
+random_indices = np.random.choice(data.index, size=5000, replace=False)
+new_data = data.loc[random_indices]
+
+# Extract the 'tags' column and clean/vectorize it
 tags_data = new_data['tags']
-
-# Function to clean and vectorize the tags from a single row
 def clean_and_vectorize_tags(tags):
-    unique_tags = set(tags.split('|'))  # Split and remove duplicates
-    sorted_tags = sorted(list(unique_tags))  # Sort
+    unique_tags = set(tags.split('|'))
+    sorted_tags = sorted(list(unique_tags))
     return sorted_tags
-
-# Apply the function to the 'tags' column of new_data
 new_data['vectorized_tags'] = tags_data.apply(clean_and_vectorize_tags)
-
-# Using MultiLabelBinarizer
-mlb = MultiLabelBinarizer()
-tags_mlb = mlb.fit_transform(new_data['vectorized_tags'])
-
-# Using CountVectorizer
 new_data['joined_tags'] = new_data['vectorized_tags'].apply(lambda x: ' '.join(x))
-cv = CountVectorizer(tokenizer=lambda txt: txt.split())
-tags_cv = cv.fit_transform(new_data['joined_tags'])
 
 # Using TfidfVectorizer
 tfidf = TfidfVectorizer(tokenizer=lambda txt: txt.split())
 tags_tfidf = tfidf.fit_transform(new_data['joined_tags'])
 
 # Dimensionality Reduction
-svd = TruncatedSVD(n_components=100)  # Adjust n_components as needed
+svd = TruncatedSVD(n_components=100)
 tags_reduced = svd.fit_transform(tags_tfidf)
 
-# Clustering
-kmeans = KMeans(n_clusters=10, random_state=42)  # Adjust n_clusters as needed
-clusters = kmeans.fit_predict(tags_reduced)
+# Initialize lists to store metrics
+silhouette_scores = []
+db_indices = []
+calinski_harabasz_scores = []
+ks = range(20, 40) #modify (2,100)
 
-# Silhouette Score
-score = silhouette_score(tags_reduced, clusters)
+for k in ks:
+    kmeans = KMeans(n_clusters=k, random_state=42).fit(tags_reduced)
+    labels = kmeans.labels_
+    
+    silhouette_scores.append(silhouette_score(tags_reduced, labels))
+    db_indices.append(davies_bouldin_score(tags_reduced, labels))
+    calinski_harabasz_scores.append(calinski_harabasz_score(tags_reduced, labels))
 
-(tags_mlb.shape, tags_cv.shape, tags_tfidf.shape, score)
+# Plotting the metrics
+plt.figure(figsize=(18, 6))
+
+plt.subplot(1, 3, 1)
+plt.plot(ks, silhouette_scores, marker='o', linestyle='-', color='blue')
+plt.title('Silhouette Score')
+plt.xlabel('Number of Clusters')
+plt.ylabel('Score')
+plt.xticks(ks)
+plt.grid(True)
+
+plt.subplot(1, 3, 2)
+plt.plot(ks, db_indices, marker='o', linestyle='-', color='red')
+plt.title('Davies-Bouldin Index')
+plt.xlabel('Number of Clusters')
+plt.ylabel('Index')
+plt.xticks(ks)
+plt.grid(True)
+
+plt.subplot(1, 3, 3)
+plt.plot(ks, calinski_harabasz_scores, marker='o', linestyle='-', color='green')
+plt.title('Calinski-Harabasz Index')
+plt.xlabel('Number of Clusters')
+plt.ylabel('Score')
+plt.xticks(ks)
+plt.grid(True)
+
+plt.tight_layout()
+plt.show()
