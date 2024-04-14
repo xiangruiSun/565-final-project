@@ -6,6 +6,8 @@ from sklearn.decomposition import TruncatedSVD
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score, davies_bouldin_score
 import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+
 
 # Load the data from the CSV file
 file_path = 'US_youtube_trending_data.csv'
